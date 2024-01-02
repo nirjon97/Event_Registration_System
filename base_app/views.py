@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from .models import Event, UserProfile
-from .forms import UserProfileForm
+from .forms import UserProfileForm, CategorySelectionForm
 from django.contrib import messages
 
 # Create your views here.
@@ -21,31 +21,28 @@ def home_page(request):
 @login_required(login_url='custom_login')
 def event_detail(request, event_id):
     single_event = Event.objects.get(id=event_id)
-    form = UserProfileForm()
+    # Check if the user is already enrolled for the event
+    user_enrolled = single_event.registered_users.filter(id=request.user.id).exists()
 
     if request.method == 'POST':
-        form = UserProfileForm(request.POST)
-        if form.is_valid():
-            # Check if there are available slots
-            if single_event.slots_available > 0:
-                registration = form.save(commit=False)
-                registration.event = single_event
-                registration.user = request.user
-                registration.save()
+        # Check if there are available slots
+        if single_event.slots_available > 0 and not user_enrolled:
+            # Enroll the user for the event
+            single_event.registered_users.add(request.user)
+            single_event.slots_available -= 1
+            single_event.save()
 
-                # Decrease the available slots
-                single_event.slots_available -= 1
-                single_event.save()
+            messages.success(request, 'You have successfully enrolled for the event.')
+        elif user_enrolled:
+            messages.warning(request, 'You are already enrolled for this event.')
+        else:
+            messages.error(request, 'There are no available slots for this event.')
 
-                messages.success(request, 'You have successfully registered for the event.')
-                return redirect('home_page')
-            else:
-                messages.error(request, 'There are no available slots for this event.')
-                return redirect('home_page')
+        return redirect('home_page')
         
     context={
         'single_event': single_event,
-        'form': form
+        'user_enrolled': user_enrolled,
     }
 
     return render(request, 'event_detail.html', context)
@@ -104,7 +101,7 @@ def register(request, event_id):
 
     # Check if the user is already registered for the event
     if user_profile in event.registered_users.all():
-        messages.error(request, 'You are already registered for this event.')
+        messages.warning(request, 'You are already registered for this event.')
     else:
         # Check if there are available slots
         if event.slots_available > 0:
@@ -121,10 +118,13 @@ def register(request, event_id):
 
     return redirect('event_detail', event_id=event_id)
 
+
+
+
 @login_required
 def unregister_event(request, event_id):
     event = get_object_or_404(Event, id=event_id)
-    user_profile = request.user.userprofile
+    user_profile = UserProfile.objects.get(user=request.user)
 
     # Check if the user is registered for the event
     if user_profile in event.registered_users.all():
@@ -137,6 +137,40 @@ def unregister_event(request, event_id):
 
         messages.success(request, 'You have successfully unregistered from the event.')
     else:
-        messages.error(request, 'You are not registered for this event.')
+        messages.warning(request, 'You are not registered for this event.')
 
-    return redirect('event_detail', event_id=event_id)
+    return redirect('user_dashboard')
+
+
+#search option
+def search_event(request):
+    form = CategorySelectionForm()
+    events = Event.objects.all()
+
+    if request.method == 'POST':
+        form = CategorySelectionForm(request.POST)
+        if form.is_valid():
+            selected_category = form.cleaned_data['category']
+            if selected_category:
+                events = Event.objects.filter(category=selected_category)
+
+    context = {
+        'form': form,
+        'events': events,
+    }
+
+    return render(request, 'search.html', context)
+
+
+#dashboard
+
+def user_dashboard(request):
+    user_profile = UserProfile.objects.get(user=request.user)
+    registered_events = Event.objects.filter(registered_users=user_profile)
+
+    context = {
+        'user_profile': user_profile,
+        'registered_events': registered_events,
+    }
+
+    return render(request, 'user_dashboard.html', context)
