@@ -1,5 +1,5 @@
-                                                                        Event Registration System
-                                                                ---------------------------------------------
+                                                          Event Registration System
+                                              ---------------------------------------------
 
 
 Brief project description and purpose.
@@ -18,7 +18,7 @@ These instructions will get you a copy of the project up and running on your loc
 ### Installing
 
 1. Clone the repository:
-   git clone https://github.com/yourusername/yourproject.git
+   git clone : https://github.com/nirjon97/Event_Registration_System.git
 
 2. Install dependencies:
    use command : pip install -r requirements.txt
