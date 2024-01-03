@@ -6,6 +6,15 @@ from .models import Event, UserProfile
 from .forms import UserProfileForm, CategorySelectionForm
 from django.contrib import messages
 
+#for api view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from .serializers import EventSerializer, UserProfileSerializer
+
+
+
 # Create your views here.
 
 def home_page(request):
@@ -174,3 +183,40 @@ def user_dashboard(request):
     }
 
     return render(request, 'user_dashboard.html', context)
+
+
+#this is space for api view
+
+@api_view(['GET'])
+def api_event_list(request):
+    events = Event.objects.all()
+    serializer = EventSerializer(events, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def api_event_detail(request, event_id):
+    event = Event.objects.get(pk=event_id)
+    serializer = EventSerializer(event)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_user_registration(request, event_id):
+    event = Event.objects.get(pk=event_id)
+    user_profile = UserProfile.objects.get(user=request.user)
+
+    if user_profile not in event.registered_users.all():
+        event.registered_users.add(user_profile)
+        event.slots_available -= 1
+        event.save()
+        return Response({'message': 'User successfully registered for the event.'}, status=status.HTTP_201_CREATED)
+    else:
+        return Response({'message': 'User is already registered for the event.'}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_user_registered_events(request):
+    user_profile = UserProfile.objects.get(user=request.user)
+    registered_events = Event.objects.filter(registered_users=user_profile)
+    serializer = EventSerializer(registered_events, many=True)
+    return Response(serializer.data)
